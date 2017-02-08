@@ -9,6 +9,8 @@ disk_buffer equ 24576
 os_call_vectors:
 	jmp os_main
 	jmp os_print_string
+	jmp os_wait_for_key
+	jmp os_get_file_list
 
 ; Main Kernel Code
 
