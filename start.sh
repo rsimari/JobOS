@@ -10,5 +10,5 @@ cat kernel.bin >> bootloader.bin
 
 dd status=noxfer conv=notrunc if=bootloader.bin of=jobos.flp
 
-qemu-system-i386 -soundhw pcspk -fda jobos.flp
+qemu-system-x86_64 -soundhw pcspk -fda jobos.flp
 
