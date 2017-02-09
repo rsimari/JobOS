@@ -1,5 +1,6 @@
 	BITS 16
 start: jmp os_main
+
 os_main:
 	cli 
 	mov ax, 0x1000
@@ -11,13 +12,14 @@ os_main:
 	mov es, ax
 	mov fs, ax
 
-
 	mov si, 0
 	mov si, kernel_load
 	call os_clear_screen
-	call os_print_string
-	;call os_write_char_at_cursor
-	;call os_move_cursor
+	;call os_print_string
+	nop
+
+	call os_game
+	nop
 
 	call os_launch_repl
 	jmp $
@@ -97,10 +99,12 @@ os_launch_repl:
 	mov si, jobos
 	call os_print_string 
 
-.single_line: ; commands we should support - ls - list available programs/actions, run something  
+.single_line: 
+	; commands we should support - ls - list available programs/actions, run something  
 
 	; wait for input 
 	call os_read_char
+
 	
 .check_new_line: 
 	cmp dl, 13 ; dl contains read char 
@@ -190,6 +194,57 @@ os_write_char:
 	pop cx
 
 	ret 
+
+os_game:
+	pusha
+
+	call os_clear_screen
+	nop
+
+	mov ax, 13h ; change to graphics mode
+	int 10h
+
+	mov ah, 0Bh
+	mov bh, 00h ; change background color
+	mov bl, 02h
+	int 10h
+
+	mv ah, 01h
+	mv cx, 0007h ; get rid of cursor
+	int 10h
+
+	call draw_circle
+	nop
+
+	mov cl, 01h
+
+	game_loop:
+		cmp cl, 00h
+		je exit_game
+
+		jmp game_loop
+
+	exit_game:
+		mov ax, 3
+		int 10h		; back to text mode
+
+		mov ah, 0Bh
+		mov bh, 00h ; change background color back to black
+		mov bl, 00h
+		int 10h
+
+		popa
+		;ret
+
+draw_circle:
+	pusha
+
+	mov ax, 0A000h
+	mov es, ax
+
+	popa
+	ret
+
 
 kernel_load db "Welcome to JobOS", 0
 jobos db "JobOS> ",0
