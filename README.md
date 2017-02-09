@@ -8,7 +8,9 @@
 
 	< Explanation of your specific stuff John >
 
-	We also wrote a simple program in graphics mode that shows a simple pong-like animation. When ran it switches the kernel into graphics mode and uses a route to write/read from the video buffer. It creates two paddles like in pong and a ball bounces between the paddles using an animation routine. The animation routine uses loops and the BIOS wait interrupt to show the ball moving back and forth. In the future we hope to turn this into a fully functional game.
+	We also wrote a simple program in graphics mode that shows a simple pong-like animation. When executed it switches the kernel into graphics mode and uses a routine to write/read from the video buffer. It creates two paddles like in pong and a ball bounces between the paddles using an animation routine. The animation routine uses loops and the BIOS wait interrupt to show the ball moving back and forth. In the future we hope to turn this into a fully functional game.
+
+	In the 1970s, hackers were using simple computers and assembly instructions to write things like interpreters and games. These hackers were writing much simpler software compared to today, but they had a much stronger understanding of the hardware and instructions worked. The primary goal of this project was to obtain a similar understanding of how an OS and the BIOS works. 
 
 	In creating this historical artifact we tried to emulate what the MIT Hackers' experienced with writing code in assembly. We tried to only work with tools that the hackers had access to (besides a PC emulator). We started by writing very simple routines in assembly using the limited BIOS interrupt calls that help us interact with hardware. We found that interacting this closely with the hardware can be equally empowering and frustrating. Once we had these simple system calls like reading characters from the keyboard we could more and more complex things like string parsing. 
 
