@@ -31,8 +31,8 @@ os_game:
 		mov bl, 00h
 		int 10h
 
-		popa
-		;ret
+	popa
+	ret
 
 put_pixel:
 	; input: set ax with Y coord, set bx with X coord, dl with
