@@ -97,8 +97,8 @@ load_kernel:
 
 	; Now we want to set ES:BX to point to our buffer
 	; interrupt places loaded mem into ES+BX, place Kernel at 1000h 
-	mov bx, 1000h 	; mov data segment pointer into bx
-	mov es, bx	; 
+	mov ax, 2000h 	; mov data segment pointer into bx
+	mov es, ax	; 
 	mov bx, 0000h 	; offset of 0000h 
 			; uses this many instructions 
 			; because segment reg. are weird
@@ -126,7 +126,7 @@ run_kernel:
 	
 	mov dl, byte [boot_dev_num] 
 	
-	jmp 1000h:0000h
+	jmp 2000h:0000h
 	
 ; Kernel is located immediately after this sector in 'root' 
 	
