@@ -1,10 +1,19 @@
+; =======================================================================
+; 		     	      JobOS Kernel
+; =======================================================================	
+; This kernel runs an interactive REPL that can run and list included programs
+
 	BITS 16
 start: jmp os_main
 
-os_main:
-	cli 
+os_main: 
+	; main kernel routine
+	; initialize segments 
 	mov ax, 0x1000
-	mov ds, ax
+	mov ds, ax	
+	
+	; set up stack
+	cli 
 	mov ss, ax
 	mov sp, 0FFFFh
 	sti 
@@ -12,17 +21,127 @@ os_main:
 	mov es, ax
 	mov fs, ax
 
+	; show kernel load successful and start repl
 	mov si, 0
 	mov si, kernel_load
 	call os_clear_screen
-	;call os_print_string
-	nop
-
-	call os_game
-	nop
+	call os_print_string
 
 	call os_launch_repl
+
 	jmp $
+
+
+os_launch_repl: 
+	; passed in, nothing. 
+	pusha 
+
+	mov cl, 0 ; line 1	
+
+.repl_loop:
+	add cl, 1
+	
+	cmp cl, 25
+	jl .new_line
+	mov cl, 0
+	call os_clear_screen
+
+.new_line:
+	mov dx, 0 
+	mov dh, cl
+	; new line, set cursor etc. 
+	call cursor_new_line 
+
+.print_jobos:
+
+	mov si, jobos
+	call os_print_string 
+
+.single_line: 
+	; commands we should support - ls - list available programs/actions, run something  
+
+	; wait for input 
+	call os_read_char
+
+	
+.check_new_line: 
+	cmp dl, 13 ; dl contains read char 
+	je .repl_loop ;  jump if new line
+
+.check_back_space: 
+	cmp dl, 8
+	jne .continue_reading 
+	
+	call get_cursor_x	
+	
+	cmp al, 7
+	jle .single_line
+
+	mov al, dl
+	push cx
+	call os_write_char
+	mov al, 0
+	call os_write_char
+	mov al, 8
+	call os_write_char
+	pop cx
+
+	jmp .single_line
+
+.continue_reading: 
+	mov al, dl
+ 
+	push cx
+	call os_write_char ; prints char at the cursor position  
+	pop cx
+
+	jmp .single_line ; keep getting chars 
+
+.end:
+
+	jmp .repl_loop ; jump back
+
+
+	popa 
+	ret 
+
+ 
+
+; ================================================================
+; 			    OS CALLS 
+; ================================================================
+
+
+os_read_char: 
+	; places resulting char in dx 
+	push ax
+	push cx
+
+	mov ah, 00h
+	int 16h 
+	mov dl, 0
+	mov dl, al
+	
+	pop cx
+	pop ax
+	ret 
+
+os_write_char: 
+	; pass char in al 
+
+	push bx 
+	push dx
+
+	mov bh, 0 
+	mov dx, 1
+
+	mov ah, 0Eh
+	int 10h 
+
+	pop dx
+	pop bx
+
+	ret 
 
 os_clear_screen:
 	pusha
@@ -35,6 +154,7 @@ os_clear_screen:
 	int 10h
 	; end move curser
 
+	; clear screen
 	mov ah, 6
 	mov al, 0
 	mov bh, 7
@@ -46,7 +166,8 @@ os_clear_screen:
 	popa
 	ret
 
-os_print_string:
+
+os_print_string: ; pass string in si
 	pusha
 
 	mov ah, 0Eh
@@ -63,191 +184,56 @@ os_print_string:
 	popa 
 	ret 
 
-os_end: 
-	mov ah, 00h
-	;int 19h
-
-os_new_line:
-	;passed in: dh contains current row number 
-
-	push ax
-	push dx
-
-	mov ah, 02h      
-	mov dl, 00h
-	int 10h
-
-	pop ax 
-	pop dx 
-
-	ret
 
 
-os_launch_repl: 
-	; passed in, nothing. 
-	pusha 
-
-	mov cl, 1 ; line 1	
-
-.repl_loop:
-	
-	mov dh, cl
-	; new line, set cursor etc. 
-	call os_new_line 
 
 
-	mov si, jobos
-	call os_print_string 
-
-.single_line: 
-	; commands we should support - ls - list available programs/actions, run something  
-
-	; wait for input 
-	call os_read_char
-
-	
-.check_new_line: 
-	cmp dl, 13 ; dl contains read char 
-	je .new_line ;  jump if new line
-
-.check_back_space: 
-	cmp dl, 8
-	jne .continue_reading 
-	
-	mov ax, 0
-	mov al, dl
-	call os_write_char
-	mov al, 0
-	call os_write_char
-	mov al, 8
-	call os_write_char
-	
-	jmp .single_line
-
-.continue_reading: 
-	mov ax, 0
-	mov al, dl
- 
-	call os_write_char ; prints char at the cursor position  
-
-	jmp .single_line ; keep getting chars 
-
-.new_line:
-	inc cl
-	jmp .repl_loop ; jump back
 
 
-	popa 
-	ret 
+; ================================================================
+; 			KERNEL SUBROUTINES
+; ================================================================
 
+get_cursor_x:
+	; passes back cursor x in al 
 
-os_backspace: 
-	
- 
-
-os_read_char: 
-
-	; places resulting char in dx 
-	push ax
-
-	mov ah, 00h
-	int 16h 
-	mov dl, 0
-	mov dl, al
-
-	pop ax
-	ret 
-
-; returns column in al
-os_get_cursor_index: 
 	push bx
 	push cx
 	push dx
 
-
 	mov ah, 03h
-	mov bh, 0
-	int 10h 
+	int 10h
 
-	mov al, dl ; passes back in al 
+	mov al, dl 	; row column stored in dl
 
-	pop bx
-	pop cx
 	pop dx
-	
-	ret 
-
-
-os_write_char: 
-	; pass char in al 
-
-	push bx 
-	push cx 
-
-	mov bh, 0 
-	mov cx, 1
-
-	mov ah, 0Eh
-	int 10h 
-
-	pop bx
 	pop cx
-
-	ret 
-
-os_game:
-	pusha
-
-	call os_clear_screen
-	nop
-
-	mov ax, 13h ; change to graphics mode
-	int 10h
-
-	mov ah, 0Bh
-	mov bh, 00h ; change background color
-	mov bl, 02h
-	int 10h
-
-	mv ah, 01h
-	mv cx, 0007h ; get rid of cursor
-	int 10h
-
-	call draw_circle
-	nop
-
-	mov cl, 01h
-
-	game_loop:
-		cmp cl, 00h
-		je exit_game
-
-		jmp game_loop
-
-	exit_game:
-		mov ax, 3
-		int 10h		; back to text mode
-
-		mov ah, 0Bh
-		mov bh, 00h ; change background color back to black
-		mov bl, 00h
-		int 10h
-
-		popa
-		;ret
-
-draw_circle:
-	pusha
-
-	mov ax, 0A000h
-	mov es, ax
-
-	popa
+	pop bx
+	
 	ret
 
+cursor_new_line:
+	;passed in: dh contains current row number 
+
+	push ax
+	push cx
+
+	mov ah, 02h      
+	mov dl, 00h
+	int 10h
+	
+	pop cx
+	pop ax 
+
+	ret
+
+
+
+; ================================================================
+; 		      STRING AND VARIABLES
+; ================================================================
 
 kernel_load db "Welcome to JobOS", 0
 jobos db "JobOS> ",0
 
 times 512-($-$$) db 0
-
