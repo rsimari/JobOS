@@ -97,10 +97,13 @@ os_run_repl:
 	cmp dl, 8
 	jne .write_char 
 
+
 	call os_get_cursor_x
 
 	cmp al, 7
 	jle .read_char
+
+	sub bx, 1
 
 	mov al, dl
 
