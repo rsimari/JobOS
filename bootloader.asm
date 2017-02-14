@@ -103,7 +103,7 @@ load_kernel:
 			; uses this many instructions 
 			; because segment reg. are weird
 	mov ah, 2h	; code for 13h read sector
-	mov al, 14 	; read 14 sectors just for fun
+	mov al, 6 	; read 14 sectors just for fun
 
 	pusha
 

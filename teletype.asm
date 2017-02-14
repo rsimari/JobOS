@@ -1,8 +1,6 @@
 	BITS 16
 	%INCLUDE "jobos.inc"
-	ORG 2048
-	id dw "JR"
-	name db "Teletype", 0, 0, 0, 0 
+	ORG 0x8000
 start:	
 	 	
  

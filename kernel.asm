@@ -7,7 +7,7 @@
 	BITS 16
 
 
-os_call_vectors: 
+os_calls: 
 	jmp os_main		;0000h
 	jmp os_print_string 	;0003h
 	jmp os_write_char	;0006h
@@ -18,8 +18,9 @@ os_call_vectors:
 	jmp os_get_cursor_x	;0015h
 
 
-
 os_main: 
+
+	mov [boot_dev_num], dl
 
 	; initialize segments 
 	mov ax,0	
@@ -157,7 +158,7 @@ os_run_repl:
 	jne .compare_ls
 
 	; otherwise, lets go
-	mov si, ax
+	mov di, ax
 	
 	jmp .run_program
 
@@ -196,34 +197,34 @@ os_run_repl:
 	jmp .repl_loop
 	
 .list_programs: 
- 
-	; will search sectors 6,8,10 for programs 0x0800, 0x0C00, 0x1000
-.check_6:
-	; check for program at 0x0800
-	mov ax, word [0x0800] 
-	mov si, 0x0802
+
+	; ROOT directory is located at sector 6
+	; It describes where programs reside
+	; 32 bytes per entry - First 2 Bytes - Sector, last 30 - name 
+
+	mov di, 0x0800 ; stores current entry address
+.process_entry:
+	cmp di, 0x0A00
+	je .end
 	
-	cmp ax, [program_id]
-	jne .check_8
+	mov dx, word [di]
+	cmp dx, 0
+	je .next_directory
+	
+	; otherwise, list name
+	mov dx, di
+	add dx, 4
+	mov si, dx 
+	
 	call .print_and_newline
 
-.check_8:
+.next_directory:
 
-	; check for program at 0x0C00
-	mov ax, word [0x0C00] 
-	mov si, 0x0C02
+	add di, 32
+	jmp .process_entry
 
-	cmp ax, [program_id]
-	jne .check_10
-	call .print_and_newline
 
-.check_10:
-	; check for program at 0x1000
-	mov ax, word [0x1000]
-	mov si, 0x1002
-	cmp ax, [program_id]
-	jne .end
-	call .print_and_newline
+	; will search sectors 6,8,10 for programs 0x0800, 0x0C00, 0x1000
 
 .print_and_newline:
 	add cl, 1
@@ -238,51 +239,53 @@ os_run_repl:
 .run_program:	; going to call a program that we find 
 	; program name is in si 
 
-.run_6:
-	; check for program at 0x0800
-	mov di, 0x0802
 
+	mov si, 0x0800 ; stores current entry address
+.process_programs:
+	cmp si, 0x0A00
+	je .no_program_err
+	
+	mov dx, word [si]
+	cmp dx, 0
+	je .next_program
+
+
+	push si
+	add si, 4
+	
 	call os_compare_strings
-	jne .run_8
+	pop si
+	jne .next_program
+
+
+
+.load_and_run:
+	; get number of sectors we span
+	add si, 2
 	
-	pusha
+	mov ax, word [si] 	; get number of sectors 
 
- 	
-	mov ax, 0
-	mov bx, 0
-	mov cx, 0
-	mov dx, 0
-	mov si, 0
-	mov di, 0
+	; load program into memory in middle of segment - programs are only 2 sectors 
+	mov si, 0x8000 		; RAM location 
 	
-	call  080Ch
+	call os_load_sectors	; si contains load address, ax contains number sectors, dx contains starting sector 
+
+	pusha 
 	
-	popa
+	call 0x8000
 
-	jmp os_main
+	popa 
 
-.run_8:
-
-	; check for program at 0x0C00
-	mov di, 0x0C02
-	call os_compare_strings
-	jne .run_10
-
-	pusha
-	call 0x0C00
-	popa
 	jmp .repl_loop
 
-.run_10:
-	; check for program at 0x1000
-	mov di, 0x1002
-	call os_compare_strings
-	mov si, no_program_err
-	jne .no_program_err
-	call 0x1002
-	jmp .repl_loop
+
+.next_program:
+	add si, 32
+	jmp .process_programs
+	
 
 .no_program_err:
+	mov si, no_program_err
 	call .print_and_newline
 	jmp .repl_loop
 
@@ -290,6 +293,34 @@ os_run_repl:
 ; ================================================================
 ; 			  SYSTEM CALLS 
 ; ================================================================
+
+
+os_load_sectors: 
+
+	pusha 
+
+	; Now we want to set ES:BX to point to our buffer
+	; interrupt places loaded mem into ES+BX, place Kernel at 1000h 
+	mov cx, ds
+	mov es, cx	
+	mov bx, si 	
+
+	push ax
+	mov ax, dx
+
+	call sector_to_settings		; ax has starting sector 
+
+	pop ax
+
+	mov ah, 02h	; code for 13h read sector 
+
+	int 13h
+
+	popa
+
+	ret 
+
+
 
 
 os_read_char: 
@@ -304,10 +335,6 @@ os_read_char:
 	mov dl, al
 	
 
-	;mov ax, 2000h
-	;mov ds, ax
-	;mov es, ax
-
 	pop cx
 	pop bx
 	pop ax
@@ -318,7 +345,6 @@ os_read_char:
 os_write_char: 
 	; pass char in al 
 
-	
 	pusha
 
 	mov bh, 0 
@@ -326,10 +352,6 @@ os_write_char:
 
 	mov ah, 0Eh
 	int 10h 
-
-	;mov ax, 2000h
-	;mov ds, ax
-	;mov es, ax
 
 	popa
 
@@ -474,6 +496,65 @@ os_get_cursor_x:
 ; ================================================================
 ; 			UTILITY SUBROUTINES
 ; ================================================================
+
+
+sector_to_settings:		; pass logical sector in dx
+	
+	push si	
+	push ax
+	push bx
+	
+	mov bx, 0
+	mov bx, ax
+ 
+	mov dx, 0
+	mov ax, [LogicalSectors] 	; 2880/2
+	mov si, 2
+	div si				; 1440 in ax 
+
+	mov dx, 0			; 1440/18
+	mov si, [SectorsPerTrack]
+	div si
+	
+	; now should have 80		; ax = 80 
+	mov [TracksPerSide], ax
+
+	mov ax, bx 	; ax should have logical sectors now 
+
+	mov dx, 0
+	mov si, [SectorsPerTrack]	; 1441/18
+	div si
+	
+	mov cl, dl			; set cl - this is correct 
+
+	mov dx, 0			; ax = 80, this is the 'track' we should go on 
+	mov si, [TracksPerSide]		; 80/80, ax = 1
+	div si 
+
+	mov ch, dl			; Cylinder ax, cylinder = wrong; This part is wrong 
+
+
+	; calculate num tracks per side 
+	mov dx, 0
+	mov ax, [LogicalSectors]	; 2880
+	mov si, 2			; ax = 1440
+	div si			
+	
+	mov si, ax
+	mov ax, bx 			; ax = 1441 			; 
+	div si 				; ax = 1, dl = 1
+	
+	mov dh, al			; head = 1
+
+
+	mov dl, byte [boot_dev_num]
+
+	pop bx
+	pop ax
+	pop si
+
+
+	ret
 
 
 cursor_new_line:
@@ -688,6 +769,11 @@ draw_pongs:
 
 	program_id dw "JR"
 
+	boot_dev_num db 0
+	SectorsPerTrack dw 18
+	NumSides dw 2
+	LogicalSectors dw 2880
+	TracksPerSide dw 0
 	no_program_err db "Error: Invalid RUN parameter.", 0
 	
 
